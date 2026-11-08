@@ -22,7 +22,6 @@
 #include "d3d9_bridge.h"
 #include "guest_boot_worker.h"
 #include "gamepad_input.h"
-#include "vulkan_driver.h"
 #include "nfs_widescreen.h"
 
 static void showStatus(android_app* app, const char* message) {
@@ -342,11 +341,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nat
     gamepadDevices=std::move(devices);
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nativeWidescreen(JNIEnv*,jclass,jboolean enabled){setGuestWidescreen(enabled==JNI_TRUE);}
-extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nativeNetworkIdentity(JNIEnv*,jclass,jlong identity){setGuestNetworkIdentity(uint64_t(identity));}
 // Minimap at the top-left: the bottom-left corner sits under the steering thumb.
-extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nativeOnlineServer(JNIEnv* env,jclass,jstring host){
-    const char* text=env->GetStringUTFChars(host,nullptr);setGuestOnlineServer(text?text:"");env->ReleaseStringUTFChars(host,text);
-}
 extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nativeMinimapTop(JNIEnv*,jclass,jboolean top){nfs_widescreen_set_minimap_offset(top==JNI_TRUE?-230.0f:0.0f);}
 static bool compatCpuTextures=false;static unsigned compatBackBuffers=2;
 extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nativeBackBuffers(JNIEnv*,jclass,jint count){
@@ -354,22 +349,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nat
 }
 extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nativeCpuTextures(JNIEnv*,jclass,jboolean enabled){
     compatCpuTextures=enabled==JNI_TRUE;setD3D9Compatibility(compatCpuTextures,compatBackBuffers);
-}
-// A driver imported in the launcher replaces the system one for DXVK. The bootstrap
-// renderer, which links the system loader, is then skipped so one process never
-// drives the GPU through two Vulkan drivers.
-static bool customVulkanDriver=false;
-static std::string customVulkanError;
-extern "C" void dxvkAndroidSetInstanceProcAddr(PFN_vkGetInstanceProcAddr entry);
-extern "C" JNIEXPORT void JNICALL Java_com_nfsmw_androidevolved_GameActivity_nativeGpuDriver(JNIEnv* env,jclass,jstring hooks,jstring temp,jstring directory,jstring library){
-    auto text=[&](jstring value){const char* c=value?env->GetStringUTFChars(value,nullptr):nullptr;std::string r=c?c:"";if(c)env->ReleaseStringUTFChars(value,c);return r;};
-    std::string h=text(hooks),t=text(temp),d=text(directory),l=text(library);
-    if(l.empty())return;
-    customVulkanDriver=true;
-    void* handle=nfsOpenVulkan(h.c_str(),t.c_str(),d.c_str(),l.c_str());
-    auto entry=nfsVulkanEntry(handle);
-    if(!entry){customVulkanError="No se pudo cargar el driver Vulkan "+l+". Elige el driver del sistema en el launcher.";return;}
-    dxvkAndroidSetInstanceProcAddr(entry);
 }
 static void configurePipelineCache(android_app* app){
     const char* files=app->activity->internalDataPath;
@@ -422,15 +401,10 @@ void android_main(android_app* app) {
             setD3D9HostWindow(app->window);
             if(d3d9RequestsSurface()){host.renderer.stop();acknowledgeD3D9Surface(true);}
             setGuestPaused(false);
-            if(!customVulkanError.empty())throw std::runtime_error(customVulkanError);
-            if (!host.renderer.device&&!d3d9RequestsSurface()&&!(customVulkanDriver&&host.guestAttempted)) {
+            if (!host.renderer.device&&!d3d9RequestsSurface()) {
                 checkGameData();
-                if(customVulkanDriver){
-                    setGuestDisplaySize(unsigned(ANativeWindow_getWidth(app->window)),unsigned(ANativeWindow_getHeight(app->window)));
-                }else{
-                    host.renderer.start(app->window);
-                    setGuestDisplaySize(host.renderer.extent.width,host.renderer.extent.height);
-                }
+                host.renderer.start(app->window);
+                setGuestDisplaySize(host.renderer.extent.width,host.renderer.extent.height);
                 if (!host.guestAttempted) {
                     host.guestAttempted = true;
                     host.guestWorker.start(std::string(kGameRoot) + "/speed.exe");
