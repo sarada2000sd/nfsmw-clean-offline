@@ -148,12 +148,14 @@ public final class LauncherActivity extends Activity {
         boolean exe = allowed && (new File(root, "speed.exe").isFile() || new File(root, "Speed.exe").isFile());
         addCheck("Speed.exe", exe, true);
         StringBuilder missing = new StringBuilder();
-        for (String folder : new String[] {"GLOBAL", "TRACKS", "CARS", "FRONTEND", "LANGUAGES"})
+        for (String folder : new String[] {"GLOBAL", "TRACKS", "CARS", "FRONTEND", "LANGUAGES", "SOUND", "MOVIES", "NIS"})
             if (!(allowed && new File(root, folder).isDirectory())) missing.append(missing.length() == 0 ? "" : ", ").append(folder);
         addCheck(missing.length() == 0 ? tr("Carpetas del juego") : tr("Faltan carpetas: %s", missing), missing.length() == 0, true);
         boolean language = allowed && !languages().isEmpty();
+        boolean d3dx = allowed && new File(root, "d3dx9_26.dll").isFile();
+        addCheck("d3dx9_26.dll (DirectX runtime)", d3dx, true);
         if (exe && !language) addCheck(tr("Falta LANGUAGES/<idioma>.bin"), false, true);
-        boolean ready = exe && language;
+        boolean ready = exe && language && d3dx && missing.length() == 0;
         if (allowed && !root.isDirectory()) root.mkdirs();  // Show the player where the files go.
         String nested = allowed && !exe ? nestedGameFolder(root) : null;
         status.setText(!allowed ? tr("Permite el acceso a archivos para leer memoria interna/nfsmw.")
