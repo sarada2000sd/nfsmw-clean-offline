@@ -1,18 +1,13 @@
 package com.nfsmw.androidevolved;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -46,7 +41,7 @@ public final class LauncherActivity extends Activity {
 
     private LinearLayout checksList, optionsList;
     private TextView status;
-    private Button play, access;
+    private Button play;
     private boolean bundleInstalling;
     private boolean bundleFailed;
 
@@ -120,13 +115,6 @@ public final class LauncherActivity extends Activity {
         playParams.topMargin = dp(8);
         left.addView(play, playParams);
 
-        access = actionButton(tr("Permitir acceso a memoria interna/nfsmw"), false);
-        access.setOnClickListener(view -> requestAccess());
-        LinearLayout.LayoutParams accessParams = new LinearLayout.LayoutParams(-1, dp(46));
-        accessParams.topMargin = dp(10);
-        left.addView(access, accessParams);
-
-
         // Right: options.
         LinearLayout right = card();
         LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0, -1, 1f);
@@ -145,7 +133,7 @@ public final class LauncherActivity extends Activity {
     }
 
     private void refresh() {
-        boolean allowed = allowed();
+        boolean allowed = true;
         File root = gameRoot();
         checksList.removeAllViews();
         if (allowed && !bundleFailed && BundledGameAssets.hasBundle(this) &&
@@ -154,7 +142,6 @@ public final class LauncherActivity extends Activity {
             status.setText(tr("Preparing the game files from this APK. Keep the app open."));
             play.setEnabled(false);
             play.setAlpha(.45f);
-            access.setVisibility(View.GONE);
             refreshOptions();
             startBundleInstall(root);
             return;
@@ -173,12 +160,11 @@ public final class LauncherActivity extends Activity {
         if (allowed && !root.isDirectory()) root.mkdirs();  // Show the player where the files go.
         String nested = allowed && !exe ? nestedGameFolder(root) : null;
         status.setText(!allowed ? tr("Permite el acceso a archivos para leer memoria interna/nfsmw.")
-                : ready ? tr("Memoria interna/nfsmw")
+                : ready ? tr("App-private game data")
                 : nested != null ? tr("Los archivos están en «%s»: mueve su contenido directamente a memoria interna/nfsmw.", nested)
                 : tr("Copia los archivos de tu juego (Speed.exe y sus carpetas) dentro de:\n%s", root.getAbsolutePath()));
         play.setEnabled(ready);
         play.setAlpha(ready ? 1f : .45f);
-        access.setVisibility(allowed ? View.GONE : View.VISIBLE);
         refreshOptions();
     }
 
@@ -314,8 +300,8 @@ public final class LauncherActivity extends Activity {
     }
 
     private void chooseLanguage() {
-        List<String[]> found = allowed() ? languages() : new ArrayList<>();
-        if (found.isEmpty()) { message(tr("Idioma del juego"), tr("No se encontraron idiomas en memoria interna/nfsmw/LANGUAGES.")); return; }
+        List<String[]> found = languages();
+        if (found.isEmpty()) { message(tr("Idioma del juego"), tr("No game languages were found in the app-private LANGUAGES folder.")); return; }
         String[] names = new String[found.size()];
         int checked = 0;
         for (int i = 0; i < names.length; i++) {
@@ -369,24 +355,8 @@ public final class LauncherActivity extends Activity {
 
     // ---- Storage ---------------------------------------------------------------------------------------
 
-    private static File gameRoot() { return new File(Environment.getExternalStorageDirectory(), "nfsmw"); }
-
-    private boolean allowed() {
-        return Build.VERSION.SDK_INT >= 30 ? Environment.isExternalStorageManager()
-            : checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestAccess() {
-        if (Build.VERSION.SDK_INT >= 30)
-            startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName())));
-        else requestPermissions(new String[] {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-    }
-
-    @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
-        super.onRequestPermissionsResult(code, permissions, results);
-        refresh();
-    }
+    // Game data and saves live in app-private storage and are removed on uninstall.
+    private File gameRoot() { return new File(getFilesDir(), "nfsmw"); }
 
     @Override protected void onDestroy() { super.onDestroy(); }
 

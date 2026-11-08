@@ -14,7 +14,7 @@ This is a work-in-progress cleanup branch based on the upstream PC executable re
 - Keep local gameplay features such as Career, Quick Race, Free Roam, police pursuits, controls, graphics settings and local saves where supported by the underlying port.
 - Use the Android device's system Vulkan driver only.
 - Work without an internet connection after installation.
-- Include the owner's game data inside a locally built personal APK and automatically install those files into `Internal storage/nfsmw` on first launch.
+- Include the owner's game data inside a locally built personal APK and automatically install those files into the app-private `files/nfsmw` directory on first launch.
 
 ## Removed or disabled in this edition
 
@@ -25,13 +25,13 @@ This is a work-in-progress cleanup branch based on the upstream PC executable re
 - Developer-channel promotion and in-game promotional toast.
 - Importing arbitrary third-party Vulkan driver ZIPs into the application.
 
-The offline network restrictions are defense-in-depth, not a substitute for Android's application sandbox. This build should not request Internet permission. Local storage access is still required by the current game-file layout.
+The offline network restrictions are defense-in-depth, not a substitute for Android's application sandbox. This build does not request Internet or broad shared-storage permissions. Game data and game saves use the app-private internal files directory.
 
 ## Requirements
 
 - Android device with Vulkan 1.1 support and a compatible 64-bit ARM build (recommended).
 - A legally obtained PC copy of *Need for Speed: Most Wanted* (2005) on the Windows build PC. The local build script stages the full game folder and `d3dx9_26.dll` into the APK; it does not upload these files to GitHub.
-- Enough free phone storage for the installed APK and a second extracted copy of the game data. The app asks for broad shared-storage permission once so it can unpack the data into `Internal storage/nfsmw`.
+- Enough free internal phone storage for the installed APK and a second extracted copy of the game data. The app unpacks the data into its private `files/nfsmw` directory without asking for broad storage access.
 
 No game executable, music, video, car assets, or other copyrighted game data is distributed in this repository.
 
@@ -46,7 +46,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\build_android.ps1
 ```
 
-The script verifies the selected `speed.exe` SHA-256, creates the main executable, D3DX9 and sound-bank translations locally, stages the user's complete game folder as APK assets, and builds a debug-signed APK at `MostWantedOffline.apk`. On first launch, the app extracts those assets automatically into `Internal storage/nfsmw`; the user does not need to copy the game folders manually. The staging folder is deleted after the build and is ignored by Git. The script stops if the game data exceeds its 3.5 GB single-APK safety threshold. The resulting APK contains copyrighted game data from the builder's own copy and is for that owner's personal use only: do not upload it to GitHub or redistribute it. The APK is a personal test build, not a publicly release-signed package.
+The script verifies the selected `speed.exe` SHA-256, creates the main executable, D3DX9 and sound-bank translations locally, stages the user's complete game folder as APK assets, and builds a debug-signed APK at `MostWantedOffline.apk`. On first launch, the app extracts those assets automatically into its private internal `files/nfsmw` directory; the user does not need to copy the game folders manually. Android removes this private game data and local saves when the app is uninstalled. The staging folder is deleted after the build and is ignored by Git. The script stops if the game data exceeds its 3.5 GB single-APK safety threshold. The resulting APK contains copyrighted game data from the builder's own copy and is for that owner's personal use only: do not upload it to GitHub or redistribute it. The APK is a personal test build, not a publicly release-signed package.
 
 Before publishing an APK, maintainers must:
 1. Build arm64-v8a from a clean checkout.
@@ -61,8 +61,8 @@ Before publishing an APK, maintainers must:
 - No online service is required for the intended single-player mode.
 - No automatic crash-log upload is included in the intended offline edition.
 - No custom Vulkan driver package should be imported or loaded by the app.
-- Bundled game data is extracted locally to `Internal storage/nfsmw`; saves remain local on the device.
-- The app still needs broad shared-storage access under the current legacy file layout. This is a known permission limitation and should be replaced with scoped storage or the Storage Access Framework in a future redesign.
+- Bundled game data, configuration and game saves are stored inside the app-private internal files directory. Android removes that directory when the app is uninstalled.
+- No broad shared-storage permission is requested for game data access.
 
 ## Known limitations
 

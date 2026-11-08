@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Installs the owner's game files embedded in this personal APK into Internal storage/nfsmw. */
+/** Installs bundled game files into app-private files/nfsmw; uninstall removes them. */
 final class BundledGameAssets {
     interface Progress {
         void update(long copiedBytes, long totalBytes);

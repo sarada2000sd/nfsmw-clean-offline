@@ -402,7 +402,9 @@ void android_main(android_app* app) {
             if(d3d9RequestsSurface()){host.renderer.stop();acknowledgeD3D9Surface(true);}
             setGuestPaused(false);
             if (!host.renderer.device&&!d3d9RequestsSurface()) {
-                const std::string gameExecutable = checkGameData();
+                if (!app->activity->internalDataPath) throw std::runtime_error("Android private files directory is unavailable");
+                const std::string privateGameRoot = std::string(app->activity->internalDataPath) + "/nfsmw";
+                const std::string gameExecutable = checkGameData(privateGameRoot);
                 host.renderer.start(app->window);
                 setGuestDisplaySize(host.renderer.extent.width,host.renderer.extent.height);
                 if (!host.guestAttempted) {

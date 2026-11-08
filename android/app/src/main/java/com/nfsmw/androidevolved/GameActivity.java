@@ -2,12 +2,7 @@ package com.nfsmw.androidevolved;
 
 import android.app.NativeActivity;
 import android.os.Build;
-import android.os.Environment;
-import android.provider.Settings;
 import android.content.Intent;
-import android.net.Uri;
-import android.Manifest;
-import android.content.pm.PackageManager;
 import android.widget.Toast;
 import android.widget.TextView;
 import android.os.Bundle;
@@ -24,10 +19,9 @@ import android.text.InputType;
 import android.view.inputmethod.EditorInfo;
 import android.util.DisplayMetrics;
 
-/** Storage permission gateway for the fixed Internal storage/nfsmw directory. */
+/** Native game activity; native code uses this app's private internal files directory. */
 public final class GameActivity extends NativeActivity {
     static { System.loadLibrary("nfsmw_android"); }
-    private boolean requested;
     private boolean foreground;
     private TextView status;
     private PopupWindow statusWindow;
@@ -294,25 +288,6 @@ public final class GameActivity extends NativeActivity {
         updateTiltSensor();
         if(inputManager!=null){inputManager.registerInputDeviceListener(gamepadListener,null);updateGamepads();}
         if(touchControls!=null) {touchControls.removeCallbacks(updateControlMode);touchControls.post(updateControlMode);}
-        boolean allowed = Build.VERSION.SDK_INT >= 30
-                ? Environment.isExternalStorageManager()
-                : checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                    && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-        if (!allowed && !requested) {
-            requested = true;
-            Toast.makeText(this, tr("Permite acceso a archivos para leer la carpeta nfsmw de la memoria interna"), Toast.LENGTH_LONG).show();
-            if (Build.VERSION.SDK_INT >= 30) {
-                startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:" + getPackageName())));
-            } else {
-                requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-            }
-        }
-    }
-    @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
-        super.onRequestPermissionsResult(code, permissions, results);
-        // NativeActivity may stay resumed when a runtime permission dialog closes.
-        if (code == 1 && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) recreate();
     }
     @Override protected void onDestroy() {
         super.onDestroy();

@@ -6,25 +6,21 @@
 #include <stdexcept>
 #include <android/log.h>
 
-constexpr const char* kGameRoot = "/storage/emulated/0/nfsmw";
-
-// Windows preserves the original filename's letter case when copied to Android,
-// while Android's filesystem is case-sensitive. Accept both common PC spellings.
-inline std::string gameExecutablePath() {
-    const std::string root(kGameRoot);
+// Root supplied from ANativeActivity::internalDataPath. This directory is private
+// to the app; Android removes it with the app during uninstall.
+inline std::string gameExecutablePath(const std::string& root) {
     for (const char* name : {"speed.exe", "Speed.exe"}) {
         const std::string path = root + "/" + name;
         FILE* exe = std::fopen(path.c_str(), "rb");
         if (exe) { std::fclose(exe); return path; }
     }
-    throw std::runtime_error("Cannot read Internal storage/nfsmw/speed.exe; check files and storage permission");
+    throw std::runtime_error("Cannot read bundled speed.exe from the app-private game folder");
 }
 
-inline std::string checkGameData() {
-    const std::string root(kGameRoot);
-    const std::string executable = gameExecutablePath();
+inline std::string checkGameData(const std::string& root) {
+    const std::string executable = gameExecutablePath(root);
     FILE* exe = std::fopen(executable.c_str(), "rb");
-    if (!exe) throw std::runtime_error("Cannot open the Most Wanted executable");
+    if (!exe) throw std::runtime_error("Cannot open Most Wanted executable in app-private storage");
     unsigned char magic[2]{};
     const size_t read = std::fread(magic, 1, 2, exe);
     std::fclose(exe);
@@ -42,6 +38,6 @@ inline std::string checkGameData() {
         if (!files) throw std::runtime_error("Empty game directory: " + path);
         __android_log_print(ANDROID_LOG_INFO, "NFSMW", "Data directory %s: %u entries", name, files);
     }
-    __android_log_print(ANDROID_LOG_INFO, "NFSMW", "Game data readable at %s; executable header/size OK", executable.c_str());
+    __android_log_print(ANDROID_LOG_INFO, "NFSMW", "Private game data readable at %s; executable header/size OK", executable.c_str());
     return executable;
 }
