@@ -125,7 +125,7 @@ try {
     $D3dxDestination = Join-Path $AssetStage "d3dx9_26.dll"
     Copy-Item -LiteralPath $D3dxDll -Destination $D3dxDestination -Force
     $ManifestLines.Add(([long](Get-Item -LiteralPath $D3dxDll).Length).ToString() + [char]9 + "d3dx9_26.dll")
-    $ManifestPath = Join-Path $AssetStage ".install_manifest.txt"
+    $ManifestPath = Join-Path $AssetStage "__offline_install_manifest.txt"
     [System.IO.File]::WriteAllLines($ManifestPath, [string[]]$ManifestLines, ([System.Text.UTF8Encoding]::new($false)))
 
     Push-Location $Android
