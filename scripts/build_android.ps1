@@ -61,6 +61,7 @@ if (!$env:ANDROID_HOME -and !$env:ANDROID_SDK_ROOT -and !(Test-Path -LiteralPath
 }
 
 $env:PCRECOMP = (Resolve-Path $Pcrecomp).Path
+$AssetStage = Join-Path $Android "app\src\main\assets\nfsmw"
 Push-Location $Root
 try {
     New-Item -ItemType Directory -Force -Path "work" | Out-Null
@@ -93,6 +94,39 @@ try {
     Invoke-PythonStep @("scripts\run_lift.py", "catalog", "work\abk.analysis.dll", "work\abk.seeds.json", "work\abk.catalog.json", "--seeds-only")
     Invoke-PythonStep @("scripts\run_lift.py", "lift", "work\abk.analysis.dll", "work\abk.catalog.json", "src\recomp\gen_abk", "--prefix", "abk_")
 
+    # Bundle this owner's local game data inside the personal APK. Nothing is uploaded to GitHub.
+    if (Test-Path -LiteralPath $AssetStage) { Remove-Item -LiteralPath $AssetStage -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $AssetStage | Out-Null
+    $GameFiles = @(Get-ChildItem -LiteralPath $GameDir -File -Recurse -Force)
+    $BundleBytes = [long]0
+    foreach ($file in $GameFiles) {
+        if ($file.Name -ieq "d3dx9_26.dll") { continue }
+        $BundleBytes += [long]$file.Length
+    }
+    $BundleBytes += [long](Get-Item -LiteralPath $D3dxDll).Length
+    $MaxSingleApkBytes = [long](3.5 * 1024 * 1024 * 1024)
+    if ($BundleBytes -gt $MaxSingleApkBytes) {
+        throw ("Game data is {0:N2} GB. This one-APK build is capped at 3.5 GB to avoid ZIP/APK size-boundary failures." -f ($BundleBytes / 1GB))
+    }
+    Write-Host (">>> Bundling {0:N2} GB of personal game files into the APK" -f ($BundleBytes / 1GB)) -ForegroundColor Cyan
+    $ManifestLines = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($file in $GameFiles) {
+        if ($file.Name -ieq "d3dx9_26.dll") { continue }
+        $Relative = $file.FullName.Substring($GameDir.TrimEnd('\').Length).TrimStart('\','/').Replace('\','/')
+        $Destination = Join-Path $AssetStage ($Relative.Replace('/', '\'))
+        $DestinationDirectory = Split-Path -Parent $Destination
+        if (!(Test-Path -LiteralPath $DestinationDirectory)) {
+            New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
+        }
+        Copy-Item -LiteralPath $file.FullName -Destination $Destination -Force
+        $ManifestLines.Add(([long]$file.Length).ToString() + [char]9 + $Relative)
+    }
+    $D3dxDestination = Join-Path $AssetStage "d3dx9_26.dll"
+    Copy-Item -LiteralPath $D3dxDll -Destination $D3dxDestination -Force
+    $ManifestLines.Add(([long](Get-Item -LiteralPath $D3dxDll).Length).ToString() + [char]9 + "d3dx9_26.dll")
+    $ManifestPath = Join-Path $AssetStage ".install_manifest.txt"
+    [System.IO.File]::WriteAllLines($ManifestPath, [string[]]$ManifestLines, (New-Object System.Text.UTF8Encoding($false)))
+
     Push-Location $Android
     try {
         Write-Host ">>> Gradle assembleDebug (workers: $Jobs)" -ForegroundColor Cyan
@@ -110,5 +144,8 @@ try {
     Write-Host "BUILD SUCCESS: $FinalApk ($SizeMB MB)" -ForegroundColor Green
     Write-Host "This is a debug-signed personal build, not a public release signing key."
 } finally {
+    if ($AssetStage -and (Test-Path -LiteralPath $AssetStage)) {
+        Remove-Item -LiteralPath $AssetStage -Recurse -Force
+    }
     Pop-Location
 }
