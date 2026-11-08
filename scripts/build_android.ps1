@@ -68,6 +68,8 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Python dependencies missing. Install them with: python -m pip install pefile capstone"
     }
+    & python -c "import pefile,sys; p=pefile.PE(sys.argv[1]); assert p.FILE_HEADER.Machine == 0x14c and p.OPTIONAL_HEADER.Magic == 0x10b and p.OPTIONAL_HEADER.ImageBase == 0x400000 and p.OPTIONAL_HEADER.SizeOfImage == 0x24a000, 'Wrong d3dx9_26.dll build; expected x86 PE32, base 0x400000, image size 0x24a000'" $D3dxDll
+    if ($LASTEXITCODE -ne 0) { throw "d3dx9_26.dll does not match the expected 32-bit DirectX runtime image" }
 
     function Invoke-PythonStep([string[]]$StepArgs) {
         Write-Host ">>> python $($StepArgs -join ' ')" -ForegroundColor Cyan
