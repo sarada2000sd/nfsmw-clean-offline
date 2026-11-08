@@ -145,7 +145,7 @@ public final class LauncherActivity extends Activity {
         boolean allowed = allowed();
         File root = gameRoot();
         checksList.removeAllViews();
-        boolean exe = allowed && new File(root, "Speed.exe").isFile();
+        boolean exe = allowed && (new File(root, "speed.exe").isFile() || new File(root, "Speed.exe").isFile());
         addCheck("Speed.exe", exe, true);
         StringBuilder missing = new StringBuilder();
         for (String folder : new String[] {"GLOBAL", "TRACKS", "CARS", "FRONTEND", "LANGUAGES"})
