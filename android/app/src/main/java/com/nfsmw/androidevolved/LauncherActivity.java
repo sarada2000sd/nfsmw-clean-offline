@@ -2,6 +2,7 @@ package com.nfsmw.androidevolved;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -46,6 +47,8 @@ public final class LauncherActivity extends Activity {
     private LinearLayout checksList, optionsList;
     private TextView status;
     private Button play, access;
+    private boolean bundleInstalling;
+    private boolean bundleFailed;
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -145,6 +148,17 @@ public final class LauncherActivity extends Activity {
         boolean allowed = allowed();
         File root = gameRoot();
         checksList.removeAllViews();
+        if (allowed && !bundleFailed && BundledGameAssets.hasBundle(this) &&
+                !BundledGameAssets.isInstalled(this, root)) {
+            addCheck(tr("Game files included in this APK"), false, true);
+            status.setText(tr("Preparing the game files from this APK. Keep the app open."));
+            play.setEnabled(false);
+            play.setAlpha(.45f);
+            access.setVisibility(View.GONE);
+            refreshOptions();
+            startBundleInstall(root);
+            return;
+        }
         boolean exe = allowed && (new File(root, "speed.exe").isFile() || new File(root, "Speed.exe").isFile());
         addCheck("Speed.exe", exe, true);
         StringBuilder missing = new StringBuilder();
@@ -166,6 +180,51 @@ public final class LauncherActivity extends Activity {
         play.setAlpha(ready ? 1f : .45f);
         access.setVisibility(allowed ? View.GONE : View.VISIBLE);
         refreshOptions();
+    }
+
+    private void startBundleInstall(File root) {
+        if (bundleInstalling || bundleFailed) return;
+        bundleInstalling = true;
+        final ProgressDialog dialog = new ProgressDialog(this);
+        dialog.setTitle(tr("Preparing Most Wanted"));
+        dialog.setMessage(tr("Installing the game files included in this APK. Please keep the app open."));
+        dialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        dialog.setIndeterminate(false);
+        dialog.setMax(1000);
+        dialog.setProgress(0);
+        dialog.setCancelable(false);
+        dialog.show();
+
+        Thread worker = new Thread(() -> {
+            try {
+                BundledGameAssets.install(getApplicationContext(), root, (copied, total) -> {
+                    final int value = total <= 0 ? 0 : (int)Math.min(1000, copied * 1000L / total);
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && dialog.isShowing()) dialog.setProgress(value);
+                    });
+                });
+                runOnUiThread(() -> {
+                    bundleInstalling = false;
+                    if (dialog.isShowing()) dialog.dismiss();
+                    if (!isFinishing()) {
+                        message(tr("Game files ready"), tr("The bundled game data has been installed. Press JUGAR to start."));
+                        refresh();
+                    }
+                });
+            } catch (Exception exception) {
+                final String detail = exception.getMessage() == null ? exception.toString() : exception.getMessage();
+                runOnUiThread(() -> {
+                    bundleInstalling = false;
+                    bundleFailed = true;
+                    if (dialog.isShowing()) dialog.dismiss();
+                    if (!isFinishing()) {
+                        status.setText(tr("Game data installation failed."));
+                        message(tr("Could not prepare the game"), tr("%s\nFree enough storage and reopen the app to retry.", detail));
+                    }
+                });
+            }
+        }, "NFSMW-Asset-Installer");
+        worker.start();
     }
 
     private void refreshOptions() {
