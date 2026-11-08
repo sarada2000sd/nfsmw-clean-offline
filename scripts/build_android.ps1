@@ -69,10 +69,10 @@ try {
         throw "Python dependencies missing. Install them with: python -m pip install pefile capstone"
     }
 
-    function Invoke-PythonStep([string[]]$Args) {
-        Write-Host ">>> python $($Args -join ' ')" -ForegroundColor Cyan
-        & python @Args
-        if ($LASTEXITCODE -ne 0) { throw "Python step failed: $($Args[0])" }
+    function Invoke-PythonStep([string[]]$StepArgs) {
+        Write-Host ">>> python $($StepArgs -join ' ')" -ForegroundColor Cyan
+        & python @StepArgs
+        if ($LASTEXITCODE -ne 0) { throw "Python step failed: $($StepArgs[0])" }
     }
 
     Invoke-PythonStep @("scripts\analyze_binary.py", $SpeedExe, "work")
