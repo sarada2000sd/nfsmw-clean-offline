@@ -23,7 +23,7 @@ final class BundledGameAssets {
     }
 
     private static final String ASSET_ROOT = "nfsmw/";
-    private static final String MANIFEST = ASSET_ROOT + ".install_manifest.txt";
+    private static final String MANIFEST = ASSET_ROOT + "__offline_install_manifest.txt";
     private static final String COMPLETE_MARKER = ".offline_bundle_complete";
     private static final int BUFFER_SIZE = 1024 * 1024;
     private static final long PROGRESS_STEP = 8L * 1024L * 1024L;
