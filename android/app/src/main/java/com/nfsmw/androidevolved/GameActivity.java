@@ -147,14 +147,11 @@ public final class GameActivity extends NativeActivity {
     private static native void nativeResolution(int width, int height);
     private static native void nativeFrameLimit(int framesPerSecond);
     private static native void nativeWidescreen(boolean enabled);
-    private static native void nativeOnlineServer(String host);
-    private static native void nativeNetworkIdentity(long identity);
     private static native void nativeGamepadConnected(boolean connected);
     private static native void nativeGamepadDevices(int[] ids);
     private static native void nativeMinimapTop(boolean top);
     private static native void nativeBackBuffers(int count);
     private static native void nativeCpuTextures(boolean enabled);
-    private static native void nativeGpuDriver(String hooks, String temp, String directory, String library);
     private void showFrameLimitOptions() {
         GameOptions.Option option=GameOptions.find(GameOptions.FPS);
         String saved=GameOptions.get(this,GameOptions.FPS);int selected=0;
@@ -199,16 +196,6 @@ public final class GameActivity extends NativeActivity {
         dialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
     }
     @Override protected void onCreate(Bundle saved) {
-        // NetBIOS supplies the PC game's machine identity. Keep a random ID
-        // private to this installation (backup is disabled), across upgrades
-        // and both APK architectures. The shared game path is not a device ID.
-        android.content.SharedPreferences network=getSharedPreferences("network_identity_v1",MODE_PRIVATE);
-        long identity=network.getLong("id",0);
-        if(identity==0){
-            do{identity=java.util.UUID.randomUUID().getLeastSignificantBits();}while(identity==0);
-            network.edit().putLong("id",identity).commit();
-        }
-        nativeNetworkIdentity(identity);
         super.onCreate(saved);
         inputManager=(android.hardware.input.InputManager)getSystemService(INPUT_SERVICE);
         tiltSensors=(android.hardware.SensorManager)getSystemService(SENSOR_SERVICE);
@@ -234,21 +221,16 @@ public final class GameActivity extends NativeActivity {
         nativeLanguage(language != null ? language : GameOptions.language(this));
         nativeFrameLimit(launch.getIntExtra("frameCap", Integer.parseInt(GameOptions.get(this, GameOptions.FPS))));
         nativeWidescreen(launch.getBooleanExtra("widescreen", GameOptions.get(this, GameOptions.WIDESCREEN).equals("on")));
-        String server = launch.getStringExtra("onlineServer");
-        nativeOnlineServer(GameOptions.validServer(server) ? server : GameOptions.onlineServer(this));
         nativeMinimapTop(launch.getBooleanExtra("minimapTop", GameOptions.get(this, GameOptions.MINIMAP).equals("top")));
         nativeBackBuffers(launch.getIntExtra("backBuffers", Integer.parseInt(GameOptions.get(this, GameOptions.LATENCY))));
         nativeCpuTextures(launch.getBooleanExtra("cpuTextures", GameOptions.get(this, GameOptions.TEXTURES).equals("cpu")));
         padJoystick = launch.getBooleanExtra("padJoystick", GameOptions.get(this, GameOptions.GAMEPAD).equals("directinput"));
-        String[] loader = launch.getStringArrayExtra("driverLoader");
-        if (loader == null || loader.length != 4) loader = GpuDrivers.loaderArguments(this);
-        nativeGpuDriver(loader[0], loader[1], loader[2], loader[3]);
         status = new TextView(this);
         status.setTextColor(Color.WHITE);
         status.setBackgroundColor(0xb0000000);
         status.setTextSize(18);
         status.setPadding(24, 16, 24, 16);
-        status.setText("NFS Most Wanted Android Evolved\nComprobando memoria interna/nfsmw…");
+        status.setText("Most Wanted Offline\nComprobando memoria interna/nfsmw…");
         // NativeActivity gives its main window surface to Vulkan; use a separate
         // non-interactive popup surface for the diagnostic text.
         statusWindow = new PopupWindow(status, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -264,7 +246,7 @@ public final class GameActivity extends NativeActivity {
         runOnUiThread(() -> {
             if (statusHideTask != null) status.removeCallbacks(statusHideTask);
             if (message.contains("Ejecutando entrada CRT")) {
-                status.setText("NFS Most Wanted Android Evolved\n" + message);
+                status.setText("Most Wanted Offline\n" + message);
                 statusHideTask = () -> {statusHidden=true;if(statusWindow.isShowing())statusWindow.dismiss();};
                 status.postDelayed(statusHideTask, 8000);
             } else {
@@ -297,27 +279,8 @@ public final class GameActivity extends NativeActivity {
             controlsWindow.showAtLocation(getWindow().getDecorView(), Gravity.TOP | Gravity.START, 0, 0);
         }
     }
-    // LAN games announce and discover themselves with UDP broadcasts on port 9999;
-    // without this lock many devices drop incoming Wi-Fi broadcasts to save power.
-    private android.net.wifi.WifiManager.MulticastLock lanBroadcasts;
-    private void holdLanBroadcasts(boolean hold) {
-        if (lanBroadcasts == null) {
-            android.net.wifi.WifiManager wifi = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-            if (wifi == null) return;
-            lanBroadcasts = wifi.createMulticastLock("nfsmw-lan");
-            lanBroadcasts.setReferenceCounted(false);
-        }
-        if (hold) lanBroadcasts.acquire(); else lanBroadcasts.release();
-    }
-    // After 3 minutes in the game (time in the foreground), once per launch:
-    // the official developer channel.
-    private long creditLeftMs=180000,creditSinceMs;
-    private final Runnable creditToast=()->{creditLeftMs=0;Toast.makeText(this,"yt: daniel54bhp",Toast.LENGTH_LONG).show();};
-    private final android.os.Handler creditHandler=new android.os.Handler(android.os.Looper.getMainLooper());
     @Override protected void onPause() {
         foreground=false;
-        if(creditLeftMs>0){creditHandler.removeCallbacks(creditToast);creditLeftMs=Math.max(1,creditLeftMs-(android.os.SystemClock.uptimeMillis()-creditSinceMs));}
-        holdLanBroadcasts(false);
         updateTiltSensor();
         if(inputManager!=null)inputManager.unregisterInputDeviceListener(gamepadListener);
         if (statusWindow != null) statusWindow.dismiss();
@@ -328,8 +291,6 @@ public final class GameActivity extends NativeActivity {
     @Override protected void onResume() {
         super.onResume();
         foreground=true;
-        if(creditLeftMs>0){creditSinceMs=android.os.SystemClock.uptimeMillis();creditHandler.postDelayed(creditToast,creditLeftMs);}
-        holdLanBroadcasts(true);
         updateTiltSensor();
         if(inputManager!=null){inputManager.registerInputDeviceListener(gamepadListener,null);updateGamepads();}
         if(touchControls!=null) {touchControls.removeCallbacks(updateControlMode);touchControls.post(updateControlMode);}
