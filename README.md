@@ -30,14 +30,23 @@ The offline network restrictions are defense-in-depth, not a substitute for Andr
 
 - Android device with Vulkan 1.1 support and a compatible 64-bit ARM build (recommended).
 - A legally obtained PC copy of *Need for Speed: Most Wanted* (2005).
-- Game data copied to `Internal storage/nfsmw`, with `Speed.exe` and the original data folders in that directory.
+- Game data copied to `Internal storage/nfsmw`, with `speed.exe` (or `Speed.exe`), the original data folders, and `d3dx9_26.dll` in that directory. The 32-bit DirectX runtime DLL can be copied from Windows `SysWOW64`.
 - Free storage for game assets and local save data.
 
 No game executable, music, video, car assets, or other copyrighted game data is distributed in this repository.
 
 ## Build notes
 
-The Android build depends on the upstream project's native recompilation toolchain, Android NDK, Vulkan/DXVK components and generated code created locally from the user's own game files. Consult the upstream technical documentation and the source tree for the exact pinned dependency revisions and generation steps. Generated proprietary game translations and original game files must remain local and must not be committed.
+The Android build depends on the patched `pcrecomp` and `nfsu2-recompiled` sibling checkouts, the Android SDK/NDK, prepared DXVK sources, and generated code created locally from the user's own game files. Generated proprietary game translations and original game files must remain local and must not be committed.
+
+On Windows, after preparing those sibling checkouts and the Android SDK/NDK, run the local build pipeline from PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\build_android.ps1
+```
+
+The script verifies the selected `speed.exe` SHA-256, creates the main executable, D3DX9 and sound-bank translations locally, then builds an installable debug-signed APK at `MostWantedOffline.apk`. It does not upload game files or generated translations. The APK is a personal test build, not a publicly release-signed package.
 
 Before publishing an APK, maintainers must:
 1. Build arm64-v8a from a clean checkout.
