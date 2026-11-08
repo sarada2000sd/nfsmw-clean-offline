@@ -402,12 +402,12 @@ void android_main(android_app* app) {
             if(d3d9RequestsSurface()){host.renderer.stop();acknowledgeD3D9Surface(true);}
             setGuestPaused(false);
             if (!host.renderer.device&&!d3d9RequestsSurface()) {
-                checkGameData();
+                const std::string gameExecutable = checkGameData();
                 host.renderer.start(app->window);
                 setGuestDisplaySize(host.renderer.extent.width,host.renderer.extent.height);
                 if (!host.guestAttempted) {
                     host.guestAttempted = true;
-                    host.guestWorker.start(std::string(kGameRoot) + "/speed.exe");
+                    host.guestWorker.start(gameExecutable);
                 }
             }
             auto status=host.guestWorker.status();
