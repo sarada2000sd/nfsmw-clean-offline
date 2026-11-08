@@ -72,31 +72,5 @@ final class GameOptions {
         prefs(context).edit().putString(key, value).apply();
     }
 
-    static final String ONLINE_SERVER = "online_server", DEFAULT_ONLINE_SERVER = "eahub.eu";
 
-    /** EA Nation replacement server: the game's *.ea.com hosts resolve to this name or IPv4 address. */
-    static String onlineServer(Context context) {
-        String value = prefs(context).getString(ONLINE_SERVER, DEFAULT_ONLINE_SERVER);
-        return validServer(value) ? value : DEFAULT_ONLINE_SERVER;
-    }
-
-    static boolean validServer(String value) {
-        return value != null && value.length() <= 253 && value.matches("[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*");
-    }
-
-    /** The game's language folder name (LANGUAGES/<file>.bin) chosen in the launcher. */
-    static String language(Context context) {
-        return prefs(context).getString(LANGUAGE, "Spanish");
-    }
-
-    /** Render size for the selected resolution on a display of width × height (landscape). */
-    static int[] renderSize(Context context, int width, int height) {
-        String value = get(context, RESOLUTION);
-        if (value.equals("720") || value.equals("480") || value.equals("360")) {
-            int renderHeight = Integer.parseInt(value);
-            return new int[] {Math.round((width * (float) renderHeight / height) / 2f) * 2, renderHeight};
-        }
-        float scale = Integer.parseInt(value) / 100f;
-        return new int[] {Math.round(width * scale / 2f) * 2, Math.round(height * scale / 2f) * 2};
-    }
 }
