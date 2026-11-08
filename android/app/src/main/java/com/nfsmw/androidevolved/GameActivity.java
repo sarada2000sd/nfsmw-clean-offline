@@ -251,7 +251,7 @@ public final class GameActivity extends NativeActivity {
                 status.postDelayed(statusHideTask, 8000);
             } else {
                 statusHidden=false;
-                status.setText("NFS Most Wanted Android Evolved\n" + message);
+                status.setText("Most Wanted Offline\n" + message);
                 if (!statusWindow.isShowing() && hasWindowFocus())
                     statusWindow.showAtLocation(getWindow().getDecorView(), Gravity.TOP | Gravity.START, 0, 0);
             }
