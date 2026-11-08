@@ -30,8 +30,7 @@ The offline network restrictions are defense-in-depth, not a substitute for Andr
 ## Requirements
 
 - Android device with Vulkan 1.1 support and a compatible 64-bit ARM build (recommended).
-- A legally obtained PC copy of *Need for Speed: Most Wanted* (2005).
-- A legally obtained PC copy of the game on the Windows build PC. The local build script stages the full game folder and `d3dx9_26.dll` into the APK; it does not upload these files to GitHub.
+- A legally obtained PC copy of *Need for Speed: Most Wanted* (2005) on the Windows build PC. The local build script stages the full game folder and `d3dx9_26.dll` into the APK; it does not upload these files to GitHub.
 - Enough free phone storage for the installed APK and a second extracted copy of the game data. The app asks for broad shared-storage permission once so it can unpack the data into `Internal storage/nfsmw`.
 
 No game executable, music, video, car assets, or other copyrighted game data is distributed in this repository.
