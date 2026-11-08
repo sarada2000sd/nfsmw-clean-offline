@@ -7,18 +7,31 @@
 #include <android/log.h>
 
 constexpr const char* kGameRoot = "/storage/emulated/0/nfsmw";
-inline void checkGameData() {
+
+// Windows preserves the original filename's letter case when copied to Android,
+// while Android's filesystem is case-sensitive. Accept both common PC spellings.
+inline std::string gameExecutablePath() {
     const std::string root(kGameRoot);
-    FILE* exe = std::fopen((root + "/speed.exe").c_str(), "rb");
-    if (!exe) throw std::runtime_error("Cannot read Internal storage/nfsmw/speed.exe; check files and storage permission");
+    for (const char* name : {"speed.exe", "Speed.exe"}) {
+        const std::string path = root + "/" + name;
+        FILE* exe = std::fopen(path.c_str(), "rb");
+        if (exe) { std::fclose(exe); return path; }
+    }
+    throw std::runtime_error("Cannot read Internal storage/nfsmw/speed.exe; check files and storage permission");
+}
+
+inline std::string checkGameData() {
+    const std::string root(kGameRoot);
+    const std::string executable = gameExecutablePath();
+    FILE* exe = std::fopen(executable.c_str(), "rb");
+    if (!exe) throw std::runtime_error("Cannot open the Most Wanted executable");
     unsigned char magic[2]{};
     const size_t read = std::fread(magic, 1, 2, exe);
     std::fclose(exe);
     struct stat info{};
     if (read != 2 || magic[0] != 'M' || magic[1] != 'Z' ||
-        stat((root + "/speed.exe").c_str(), &info) || info.st_size != 6029312)  // speed.exe, SHA-256 80774c2e...253c
+        stat(executable.c_str(), &info) || info.st_size != 6029312)
         throw std::runtime_error("speed.exe does not match the expected Most Wanted image size/header");
-    // Most Wanted's data folders (the shared storage is case-insensitive).
     for (const char* name : {"CARS", "FRONTEND", "GLOBAL", "LANGUAGES", "MOVIES", "NIS", "SOUND", "TRACKS"}) {
         const auto path = root + "/" + name;
         DIR* dir = opendir(path.c_str());
@@ -29,5 +42,6 @@ inline void checkGameData() {
         if (!files) throw std::runtime_error("Empty game directory: " + path);
         __android_log_print(ANDROID_LOG_INFO, "NFSMW", "Data directory %s: %u entries", name, files);
     }
-    __android_log_print(ANDROID_LOG_INFO, "NFSMW", "Game data readable at %s; executable header/size OK (guest not running)", kGameRoot);
+    __android_log_print(ANDROID_LOG_INFO, "NFSMW", "Game data readable at %s; executable header/size OK", executable.c_str());
+    return executable;
 }
