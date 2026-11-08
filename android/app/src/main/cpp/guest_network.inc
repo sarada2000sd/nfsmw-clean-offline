@@ -15,7 +15,6 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 
-std::string onlineServer="eahub.eu";
 std::array<uint8_t,6> guestNetworkMac{0x02,0x4e,0,0,0,1};
 namespace net {
 constexpr uint32_t socketError=0xffffffffu,invalidSocket=0xffffffffu;
@@ -180,7 +179,7 @@ void wsaStartup(){
     std::strcpy(static_cast<char*>(ptr(data+261,8)),"Running");
     uint16_t maxSockets=1024,maxDatagram=65467;std::memcpy(ptr(data+390,2),&maxSockets,2);std::memcpy(ptr(data+392,2),&maxDatagram,2);
     ++net::startups;
-    NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSMW","Winsock: WSAStartup %04x; EA Nation hosts resolve via %s",requested,onlineServer.c_str());
+    NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSMW","Winsock: WSAStartup %04x (offline build; sockets disabled)",requested);
     ret(0,2);
 }
 void wsaCleanup(){
@@ -191,6 +190,10 @@ void wsaCleanup(){
 void wsaGetLastError(){ret(lastError,0);}
 void wsaSetLastError(){lastError=arg(0);ret(0,1);}
 void socketCreate(){
+#ifdef NFS_OFFLINE_ONLY
+    // Retain the imported ABI, but never open guest sockets in this edition.
+    lastError=10050;ret(net::invalidSocket,3);return;
+#else
     uint32_t family=arg(0),type=arg(1),protocol=arg(2);
     if(family==AF_INET&&type==3&&protocol==1){  // SOCK_RAW + IPPROTO_ICMP: ping
         int fd=::socket(AF_INET,SOCK_DGRAM|SOCK_NONBLOCK|SOCK_CLOEXEC,IPPROTO_ICMP);
@@ -214,6 +217,7 @@ void socketCreate(){
     uint32_t handle=net::newHandle(fd,false);
     NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSMW","Winsock: socket %08x %s from %08x",handle,type==SOCK_STREAM?"TCP":"UDP",read32(g_esp));
     ret(handle,3);
+#endif
 }
 void socketClose(){
     auto found=net::sockets.find(arg(0));
@@ -472,35 +476,25 @@ void socketSelect(){
 void hostByName(){
     std::string requested=guestString(arg(0)),name=lower(requested);
     std::vector<in_addr> addresses;
+#ifdef NFS_OFFLINE_ONLY
+    if(net::localName(name)){in_addr loopback{};loopback.s_addr=htonl(INADDR_LOOPBACK);addresses.push_back(loopback);}
+    else{lastError=net::wsaHostNotFound;ret(0,1);return;}
+#else
     if(net::localName(name))addresses=net::interfaceAddresses(name=="localhost");
-    else{
-        std::string lookup=name;
-        if(name=="ea.com"||net::endsWith(name,".ea.com"))lookup=onlineServer;
-        addrinfo hints{};hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;
-        addrinfo* result=nullptr;
-        int status=net::released([&]{return ::getaddrinfo(lookup.c_str(),nullptr,&hints,&result);});
-        if(status){
-            NFS_RUNTIME_LOG(ANDROID_LOG_WARN,"NFSMW","Winsock: %s -> %s no resuelve (%s)",requested.c_str(),lookup.c_str(),gai_strerror(status));
-            lastError=status==EAI_AGAIN?11002:status==EAI_NONAME?net::wsaHostNotFound:net::wsaNoData;ret(0,1);return;
-        }
-        for(auto* entry=result;entry&&addresses.size()<8;entry=entry->ai_next){
-            in_addr value=reinterpret_cast<sockaddr_in*>(entry->ai_addr)->sin_addr;
-            if(std::none_of(addresses.begin(),addresses.end(),[&](in_addr a){return a.s_addr==value.s_addr;}))addresses.push_back(value);
-        }
-        freeaddrinfo(result);
-        char text[INET_ADDRSTRLEN]{};if(!addresses.empty())inet_ntop(AF_INET,&addresses[0],text,sizeof text);
-        NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSMW","Winsock: gethostbyname %s%s%s -> %s",requested.c_str(),lookup!=name?" via ":"",lookup!=name?lookup.c_str():"",text);
-    }
+    else{addrinfo hints{};hints.ai_family=AF_INET;hints.ai_socktype=SOCK_STREAM;addrinfo* result=nullptr;
+        int status=net::released([&]{return ::getaddrinfo(name.c_str(),nullptr,&hints,&result);});
+        if(status){lastError=status==EAI_AGAIN?11002:status==EAI_NONAME?net::wsaHostNotFound:net::wsaNoData;ret(0,1);return;}
+        for(auto* entry=result;entry&&addresses.size()<8;entry=entry->ai_next){in_addr value=reinterpret_cast<sockaddr_in*>(entry->ai_addr)->sin_addr;
+            if(std::none_of(addresses.begin(),addresses.end(),[&](in_addr a){return a.s_addr==value.s_addr;}))addresses.push_back(value);}
+        freeaddrinfo(result);}
+#endif
     if(addresses.empty()){lastError=net::wsaNoData;ret(0,1);return;}
     if(addresses.size()>8)addresses.resize(8);
-    // Layout: hostent(16) aliases[1](4) list[9](36) addrs[8](32) name(256).
     if(!net::hostent)net::hostent=allocate(344);
     uint32_t base=net::hostent,aliases=base+16,list=aliases+4,data=list+36,text=data+32;
-    std::memset(ptr(base,344),0,344);
-    std::snprintf(static_cast<char*>(ptr(text,256)),256,"%s",requested.c_str());
-    write32(base,text);write32(base+4,aliases);
-    uint16_t type=AF_INET,length=4;std::memcpy(ptr(base+8,2),&type,2);std::memcpy(ptr(base+10,2),&length,2);
-    write32(base+12,list);
+    std::memset(ptr(base,344),0,344);std::snprintf(static_cast<char*>(ptr(text,256)),256,"%s",requested.c_str());
+    write32(base,text);write32(base+4,aliases);uint16_t type=AF_INET,length=4;
+    std::memcpy(ptr(base+8,2),&type,2);std::memcpy(ptr(base+10,2),&length,2);write32(base+12,list);
     for(size_t i=0;i<addresses.size();++i){std::memcpy(ptr(data+uint32_t(i)*4,4),&addresses[i],4);write32(list+uint32_t(i)*4,data+uint32_t(i)*4);}
     ret(base,1);
 }
