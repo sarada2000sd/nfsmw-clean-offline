@@ -806,7 +806,11 @@ std::string connectGuestRuntime(const char* executable) {
         testGuestFileTime();
         testGuestCriticalSections();
         testGuestQsort();
+#ifdef NFS_OFFLINE_ONLY
+        NFS_RUNTIME_LOG(ANDROID_LOG_INFO,"NFSMW","Winsock online/LAN self-test skipped in offline edition");
+#else
         testGuestNetwork();
+#endif
         testGuestThreadTermination();
         // Restore a clean CPU state before executing the real CRT entry.
         fresh.load();
