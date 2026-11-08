@@ -110,9 +110,10 @@ try {
     }
     Write-Host (">>> Bundling {0:N2} GB of personal game files into the APK" -f ($BundleBytes / 1GB)) -ForegroundColor Cyan
     $ManifestLines = New-Object 'System.Collections.Generic.List[string]'
+    $GamePrefix = $GameDir.TrimEnd([char[]]@([char]'\',[char]'/')) + [IO.Path]::DirectorySeparatorChar
     foreach ($file in $GameFiles) {
         if ($file.Name -ieq "d3dx9_26.dll") { continue }
-        $Relative = $file.FullName.Substring($GameDir.TrimEnd('\').Length).TrimStart('\','/').Replace('\','/')
+        $Relative = $file.FullName.Substring($GamePrefix.Length).Replace('\','/')
         $Destination = Join-Path $AssetStage ($Relative.Replace('/', '\'))
         $DestinationDirectory = Split-Path -Parent $Destination
         if (!(Test-Path -LiteralPath $DestinationDirectory)) {
@@ -125,7 +126,7 @@ try {
     Copy-Item -LiteralPath $D3dxDll -Destination $D3dxDestination -Force
     $ManifestLines.Add(([long](Get-Item -LiteralPath $D3dxDll).Length).ToString() + [char]9 + "d3dx9_26.dll")
     $ManifestPath = Join-Path $AssetStage ".install_manifest.txt"
-    [System.IO.File]::WriteAllLines($ManifestPath, [string[]]$ManifestLines, (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllLines($ManifestPath, [string[]]$ManifestLines, ([System.Text.UTF8Encoding]::new($false)))
 
     Push-Location $Android
     try {
