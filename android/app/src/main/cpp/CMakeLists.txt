@@ -22,26 +22,6 @@ if(NOT GEN_SOURCES)
     message(FATAL_ERROR "Missing generated Speed.exe code in ${GEN_DIR}; prepare the owner's local game files first")
 endif()
 
-# Very large translation units can exceed Windows/Android compiler memory.
-set(ANDROID_GEN_SOURCES)
-foreach(source IN LISTS GEN_SOURCES)
-    file(SIZE "${source}" source_bytes)
-    if(source_bytes GREATER 67108864)
-        find_package(Python3 REQUIRED COMPONENTS Interpreter)
-        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${source}" "${NFS_ROOT}/scripts/split_android_sources.py")
-        execute_process(COMMAND "${Python3_EXECUTABLE}" "${NFS_ROOT}/scripts/split_android_sources.py"
-            "${source}" "${CMAKE_CURRENT_BINARY_DIR}/split_guest"
-            RESULT_VARIABLE split_status OUTPUT_VARIABLE split_sources OUTPUT_STRIP_TRAILING_WHITESPACE)
-        if(NOT split_status EQUAL 0)
-            message(FATAL_ERROR "Failed to split lifted Android source: ${source}")
-        endif()
-        string(REPLACE "\n" ";" split_sources "${split_sources}")
-        list(APPEND ANDROID_GEN_SOURCES ${split_sources})
-    else()
-        list(APPEND ANDROID_GEN_SOURCES "${source}")
-    endif()
-endforeach()
-
 # D3DX9 is imported by Speed.exe and its effect/math routines are needed by
 # single-player graphics. Keep this locally generated module in the APK.
 set(D3DX_GEN_DIR "${NFS_ROOT}/src/recomp/gen_d3dx")
@@ -58,6 +38,10 @@ if(NOT ABK_GEN_SOURCES)
     message(FATAL_ERROR "Missing lifted sound-bank code in ${ABK_GEN_DIR}")
 endif()
 list(APPEND ANDROID_GEN_SOURCES ${ABK_GEN_SOURCES})
+set(ABK_BLOCKS_C "${NFS_ROOT}/work/abk_blocks.c")
+if(NOT EXISTS "${ABK_BLOCKS_C}")
+    message(FATAL_ERROR "Missing generated ABK block data at ${ABK_BLOCKS_C}; run scripts/abk_module.py with the local game files")
+endif()
 
 set_property(GLOBAL PROPERTY JOB_POOLS guest_compile=3)
 add_library(nfs_guest OBJECT ${ANDROID_GEN_SOURCES})
@@ -80,6 +64,7 @@ add_library(nfsmw_android SHARED
     "${NFS_ROOT}/src/runtime/overrides.c"
     "${NFS_ROOT}/src/runtime/widescreen.c"
     "${NFS_ROOT}/src/runtime/abk_code.c"
+    "${ABK_BLOCKS_C}"
     $<TARGET_OBJECTS:nfs_guest>)
 
 target_include_directories(nfsmw_android SYSTEM PRIVATE
