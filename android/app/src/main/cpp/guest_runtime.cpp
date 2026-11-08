@@ -878,12 +878,7 @@ void setGuestPointer(float x,float y,int phase){
     enqueueGuestPointer(phase);
 }
 void typeGuestText(const std::vector<uint32_t>& characters){enqueueGuestText(characters);}
-void setGuestOnlineServer(const std::string& host){std::lock_guard<MachineMutex> lock(machine);if(!memory&&!host.empty())onlineServer=host;}
-void setGuestNetworkIdentity(uint64_t identity){
-    std::lock_guard<MachineMutex> lock(machine);if(memory)return;
-    for(unsigned i=0;i<6;++i)guestNetworkMac[i]=uint8_t(identity>>(8*i));
-    guestNetworkMac[0]=(guestNetworkMac[0]&0xfcu)|2u; // locally administered, unicast
-}
+
 void setGuestWidescreen(bool enabled){std::lock_guard<MachineMutex> lock(machine);if(!memory)guestWidescreen=enabled;}
 void setGuestLanguage(const char* language){
     std::lock_guard<MachineMutex> lock(machine);if(memory)return;
